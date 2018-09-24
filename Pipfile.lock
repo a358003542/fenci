@@ -1,0 +1,28 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "1cbe50b3e52cbfa6a1dc788774915fba5ec39a0b063f448c1c215aeb8743f5c0"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "python_version": "3.6"
+        },
+        "sources": [
+            {
+                "name": "pypi_douban",
+                "url": "https://pypi.douban.com/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {
+        "bihu": {
+            "hashes": [
+                "sha256:abf580995628c4ca5f175dc5c3ceb6463230fbcfbd5f854d1c6f952ee06cb98d"
+            ],
+            "index": "pypi_douban",
+            "version": "==0.1.4"
+        }
+    },
+    "develop": {}
+}
