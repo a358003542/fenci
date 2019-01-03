@@ -1,4 +1,4 @@
-# bihu_word_segment
+# simple_jieba
 中文分词
 
 ## TODO
