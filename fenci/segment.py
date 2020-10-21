@@ -11,8 +11,8 @@ from hashlib import md5
 import tempfile
 import marshal
 
-from bihu.utils.path_utils import normalized_path
-
+from .utils import normalized_path
+from . import __softname__
 from .hmm import cut as hmm_cut
 from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME
 from .compat import _replace_file
@@ -70,7 +70,9 @@ class Segment():
                 ltotal += freq
 
             except ValueError:
-                raise ValueError('invalid dictionary entry in {0} at Line {1}: {2}'.format(f_name, lineno, line))
+                raise ValueError(
+                    'invalid dictionary entry in {0} at Line {1}: {2}'.format(
+                        f_name, lineno, line))
         f.close()
         return lfreq, ltotal
 
@@ -89,7 +91,8 @@ class Segment():
             if self.initialized:  # 已经初始化了就不用初始化了
                 return
 
-            logging.debug("Building prefix dict from %s ..." % (abs_path or 'the default dictionary'))
+            logging.debug("Building prefix dict from %s ..." % (
+                        abs_path or 'the default dictionary'))
             t1 = time.time()
 
             if self.cache_file:
@@ -99,14 +102,18 @@ class Segment():
                 cache_file = DEFALUT_CACHE_NAME
             # custom dictionary
             else:
-                cache_file = "bihu_word_segment.{0}.cache".format(md5(abs_path.encode('utf-8', 'replace')).hexdigest())
+                random_id = md5(abs_path.encode('utf-8', 'replace')).hexdigest()
+                cache_file = f"{__softname__}.{random_id}.cache"
 
-            cache_file = os.path.join(self.tmp_dir or tempfile.gettempdir(), cache_file)
+            cache_file = os.path.join(self.tmp_dir or tempfile.gettempdir(),
+                                      cache_file)
             tmpdir = os.path.dirname(cache_file)
 
             load_from_cache_fail = True
             if os.path.isfile(cache_file) and (abs_path == DEFAULT_DICT or
-                                               os.path.getmtime(cache_file) > os.path.getmtime(abs_path)):
+                                               os.path.getmtime(
+                                                   cache_file) > os.path.getmtime(
+                        abs_path)):
                 logging.debug("Loading model from cache {0}".format(cache_file))
                 try:
                     with open(cache_file, 'rb') as cf:
@@ -119,13 +126,16 @@ class Segment():
                 wlock = DICT_WRITING.get(abs_path, threading.RLock())
                 DICT_WRITING[abs_path] = wlock
                 with wlock:
-                    self.FREQ, self.total = self.gen_pfdict(self.get_dict_file())
-                    logging.debug("Dumping model to file cache {0}".format(cache_file))
+                    self.FREQ, self.total = self.gen_pfdict(
+                        self.get_dict_file())
+                    logging.debug(
+                        "Dumping model to file cache {0}".format(cache_file))
                     try:
                         # prevent moving across different filesystems
                         fd, fpath = tempfile.mkstemp(dir=tmpdir)
                         with os.fdopen(fd, 'wb') as temp_cache_file:
-                            marshal.dump((self.FREQ, self.total), temp_cache_file)
+                            marshal.dump((self.FREQ, self.total),
+                                         temp_cache_file)
                         _replace_file(fpath, cache_file)
                     except Exception:
                         logging.exception("Dump cache file failed.")
@@ -136,7 +146,8 @@ class Segment():
                     pass
 
             self.initialized = True
-            logging.debug("Loading model cost %.3f seconds." % (time.time() - t1))
+            logging.debug(
+                "Loading model cost %.3f seconds." % (time.time() - t1))
             logging.debug("Prefix dict has been built succesfully.")
 
     def check_initialized(self):
@@ -174,9 +185,10 @@ class Segment():
 
         logtotal = math.log(self.total)
         for idx in range(N - 1, -1, -1):  # 逆序规划 选择一条整个路径频率最大的句子
-            route[idx] = max((math.log(self.FREQ.get(sentence[idx:x + 1]) or 1) -
-                              logtotal + route[x + 1][0],
-                              x) for x in DAG[idx])  # x 终点索引点 idx 考察开始点
+            route[idx] = max(
+                (math.log(self.FREQ.get(sentence[idx:x + 1]) or 1) -
+                 logtotal + route[x + 1][0],
+                 x) for x in DAG[idx])  # x 终点索引点 idx 考察开始点
 
     def __cut_DAG(self, sentence, new_word_find=None):
 

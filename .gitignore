@@ -60,3 +60,4 @@ bin/
 
 .eggs/
 .idea/
+venv/

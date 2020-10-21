@@ -5,7 +5,7 @@ import re
 import pickle
 import sys
 
-from bihu_word_segment.utils import get_module_res, strdecode
+from ..utils import get_module_res, strdecode
 
 default_encoding = sys.getfilesystemencoding()
 
