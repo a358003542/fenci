@@ -27,8 +27,8 @@ def test_get_DAG():
 
 def test_cut():
     segment = Segment()
-    res = list(segment.cut(
-        '据 CNBC 报道，Google    前 CEO、Alphabet 前执行董事 Eric Schmidt 近日在参加旧金山的某高级私人活动时表示，未来十年将有两个截然不同的互联网：一个由美国领导，另一个由中国领导。。。'))
+    res = segment.lcut(
+        '据 CNBC 报道，Google    前 CEO、Alphabet 前执行董事 Eric Schmidt 近日在参加旧金山的某高级私人活动时表示，未来十年将有两个截然不同的互联网：一个由美国领导，另一个由中国领导。。。')
     print(res)
 
     assert res == ['据', ' ', 'CNBC', ' ', '报道', '，', 'Google', '    ', '前', ' ',

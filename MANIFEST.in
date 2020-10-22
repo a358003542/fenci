@@ -4,5 +4,4 @@ include setup.cfg
 include LICENSE
 include .gitignore
 recursive-include tests *.py
-include fenci/dict.txt
-recursive-include fenci *.p
+include fenci/dict_small.txt

@@ -91,8 +91,8 @@ class Segment():
             if self.initialized:  # 已经初始化了就不用初始化了
                 return
 
-            logging.debug("Building prefix dict from %s ..." % (
-                        abs_path or 'the default dictionary'))
+            logger.debug("Building prefix dict from %s ..." % (
+                    abs_path or 'the default dictionary'))
             t1 = time.time()
 
             if self.cache_file:
@@ -114,7 +114,7 @@ class Segment():
                                                os.path.getmtime(
                                                    cache_file) > os.path.getmtime(
                         abs_path)):
-                logging.debug("Loading model from cache {0}".format(cache_file))
+                logger.debug("Loading model from cache {0}".format(cache_file))
                 try:
                     with open(cache_file, 'rb') as cf:
                         self.FREQ, self.total = marshal.load(cf)
@@ -128,7 +128,7 @@ class Segment():
                 with wlock:
                     self.FREQ, self.total = self.gen_pfdict(
                         self.get_dict_file())
-                    logging.debug(
+                    logger.debug(
                         "Dumping model to file cache {0}".format(cache_file))
                     try:
                         # prevent moving across different filesystems
@@ -138,7 +138,7 @@ class Segment():
                                          temp_cache_file)
                         _replace_file(fpath, cache_file)
                     except Exception:
-                        logging.exception("Dump cache file failed.")
+                        logger.exception("Dump cache file failed.")
 
                 try:
                     del DICT_WRITING[abs_path]
@@ -146,9 +146,9 @@ class Segment():
                     pass
 
             self.initialized = True
-            logging.debug(
+            logger.debug(
                 "Loading model cost %.3f seconds." % (time.time() - t1))
-            logging.debug("Prefix dict has been built succesfully.")
+            logger.debug("Prefix dict has been built succesfully.")
 
     def check_initialized(self):
         if not self.initialized:
@@ -272,3 +272,6 @@ class Segment():
                     else:
                         for xx in x:  # 剩下来的全部分开
                             yield xx
+
+    def lcut(self, sentence):
+        return list(self.cut(sentence))

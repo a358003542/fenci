@@ -25,10 +25,6 @@ def resolve_filename(f):
 
 MIN_FLOAT = -3.14e100
 
-PROB_START_P = "prob_start.p"
-PROB_TRANS_P = "prob_trans.p"
-PROB_EMIT_P = "prob_emit.p"
-
 PrevStatus = {
     'B': 'ES',
     'M': 'MB',
@@ -36,20 +32,9 @@ PrevStatus = {
     'E': 'BM'
 }
 
-
-def load_model():
-    start_p = pickle.load(get_module_res("finalseg", PROB_START_P))
-    trans_p = pickle.load(get_module_res("finalseg", PROB_TRANS_P))
-    emit_p = pickle.load(get_module_res("finalseg", PROB_EMIT_P))
-    return start_p, trans_p, emit_p
-
-
-if sys.platform.startswith("java"):
-    start_P, trans_P, emit_P = load_model()
-else:
-    from .prob_start import P as start_P
-    from .prob_trans import P as trans_P
-    from .prob_emit import P as emit_P
+from .prob_start import P as start_P
+from .prob_trans import P as trans_P
+from .prob_emit import P as emit_P
 
 
 def viterbi(obs, states, start_p, trans_p, emit_p):
@@ -64,7 +49,8 @@ def viterbi(obs, states, start_p, trans_p, emit_p):
         for y in states:
             em_p = emit_p[y].get(obs[t], MIN_FLOAT)
             (prob, state) = max(
-                [(V[t - 1][y0] + trans_p[y0].get(y, MIN_FLOAT) + em_p, y0) for y0 in PrevStatus[y]])
+                [(V[t - 1][y0] + trans_p[y0].get(y, MIN_FLOAT) + em_p, y0) for
+                 y0 in PrevStatus[y]])
             V[t][y] = prob
             newpath[y] = path[state] + [y]
         path = newpath

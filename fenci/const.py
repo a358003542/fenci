@@ -4,6 +4,6 @@
 
 from . import __softname__
 
-DEFAULT_DICT = 'dict.txt'
+DEFAULT_DICT = 'dict_small.txt'
 
 DEFALUT_CACHE_NAME = f'{__softname__}.cache'
