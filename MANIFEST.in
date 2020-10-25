@@ -5,3 +5,4 @@ include LICENSE
 include .gitignore
 recursive-include tests *.py
 include fenci/dict_small.txt
+include fenci/hmm_data.json

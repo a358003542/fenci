@@ -7,28 +7,11 @@ from fenci.segment import Segment
 logging.basicConfig(level=logging.DEBUG)
 
 
-def test_initialize():
-    segment = Segment()
-    segment.initialize()
-
-
-def test_gen_pfdict():
-    segment = Segment()
-    file = segment.get_dict_file()
-    FREQ, count = segment.gen_pfdict(file)
-
-
-def test_get_DAG():
-    segment = Segment()
-    res = segment.get_DAG(
-        '据 CNBC 报道，Google    前 CEO、Alphabet 前执行董事 Eric Schmidt 近日在参加旧金山的某高级私人活动时表示，未来十年将有两个截然不同的互联网：一个由美国领导，另一个由中国领导。。。')
-    print(res)
-
-
 def test_cut():
     segment = Segment()
     res = segment.lcut(
         '据 CNBC 报道，Google    前 CEO、Alphabet 前执行董事 Eric Schmidt 近日在参加旧金山的某高级私人活动时表示，未来十年将有两个截然不同的互联网：一个由美国领导，另一个由中国领导。。。')
+
     print(res)
 
     assert res == ['据', ' ', 'CNBC', ' ', '报道', '，', 'Google', '    ', '前', ' ',

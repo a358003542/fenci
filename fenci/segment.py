@@ -7,18 +7,16 @@ import threading
 import logging
 import os
 import time
-from hashlib import md5
-import tempfile
-import marshal
 
-from .utils import normalized_path
+from nltk import FreqDist
+from nltk.tokenize.api import TokenizerI
+
+from .base import BaseSegment
+from .hmm_segment import HMMSegment
+from .utils import normalized_path, get_json_value, set_json_value
 from . import __softname__
-from .hmm import cut as hmm_cut
-from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME
-from .compat import _replace_file
-from .utils import strdecode, get_module_res
-
-DICT_WRITING = {}
+from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME, CACHE_WRITING
+from .utils import strdecode
 
 logger = logging.getLogger(__name__)
 
@@ -29,130 +27,126 @@ re_han_default = re.compile(r"([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)")
 re_skip_default = re.compile(r"([\r\n|\s]+)")
 
 
-def resolve_filename(f):
-    try:
-        return f.name
-    except AttributeError:
-        return repr(f)
-
-
-default_new_word_find = hmm_cut
-
-
-class Segment():
-    def __init__(self, dictionary=None):
+class Segment(TokenizerI, BaseSegment):
+    def __init__(self, dictionary=None, traning_root=None,
+                 traning_regexp='.*\.txt'):
         self.lock = threading.RLock()
+
+        self.training_root = traning_root
+        self.training_regexp = traning_regexp
 
         if dictionary is None:
             self.dictionary = DEFAULT_DICT
+            self.dictionary_type = 'default'
         else:
             self.dictionary = normalized_path(dictionary)
+            self.dictionary_type = 'custom'
 
-        self.FREQ = {}
-        self.total = 0
-        self.user_word_tag_tab = {}
+        self.word_fd = FreqDist()
+
+        self.cache_file = DEFALUT_CACHE_NAME
+
+        self.hmm_segment = HMMSegment(traning_root=traning_root,
+                                      traning_regexp=traning_regexp,
+                                      cache_file=self.cache_file)
+
         self.initialized = False
         self.tmp_dir = None
-        self.cache_file = None
 
-    def gen_pfdict(self, f):
-        lfreq = {}
-        ltotal = 0
+    def training(self, root=None, regexp=None):
+        """
+        根据已经分好词的内容来训练
+        :param root:
+        :param regexp:
+        :return:
+        """
+        self.check_initialized()
 
-        f_name = resolve_filename(f)
+        if root is None and self.training_root is None:
+            raise Exception('please give the training data root')
 
-        for lineno, line in enumerate(f):
-            try:
-                line = line.strip().decode('utf-8')
-                word, freq = line.split(' ')[:2]
+        root = root if root is not None else self.training_root
+        regexp = regexp if regexp is not None else self.training_regexp
+
+        from fenci.utils import read_training_content
+        content = read_training_content(root, regexp)
+
+        content_list = content.split()
+
+        fd = FreqDist(content_list)
+
+        self.word_fd.update(fd)
+
+    def training_hmm(self, root=None, regexp=None, update_dict=False):
+        self.check_initialized()
+
+        if root is None and self.training_root is None:
+            raise Exception('please give the training data root')
+        root = root if root is not None else self.training_root
+        regexp = regexp if regexp is not None else self.training_regexp
+
+        if update_dict:
+            self.training(root, regexp)
+
+        self.hmm_segment.training(root, regexp)
+
+    def gen_word_fd(self, filename):
+        word_fd = FreqDist()
+
+        with open(filename, 'rt', encoding='utf8') as f:
+            for line in f:
+                word, freq = line.split()[:2]
                 freq = int(freq)
-                lfreq[word] = freq
-                ltotal += freq
+                word_fd.update({word: freq})
 
-            except ValueError:
-                raise ValueError(
-                    'invalid dictionary entry in {0} at Line {1}: {2}'.format(
-                        f_name, lineno, line))
-        f.close()
-        return lfreq, ltotal
+        return word_fd
 
-    def initialize(self, dictionary=None):
-        if dictionary:
-            abs_path = normalized_path(dictionary)
-            if self.dictionary == abs_path and self.initialized:
-                return
-            else:
-                self.dictionary = abs_path
-                self.initialized = False
-        else:
-            abs_path = self.dictionary
-
+    def initialize(self):
         with self.lock:  # 字典在建造时的线程锁
             if self.initialized:  # 已经初始化了就不用初始化了
                 return
 
             logger.debug("Building prefix dict from %s ..." % (
-                    abs_path or 'the default dictionary'))
+                    self.dictionary or 'the default dictionary'))
             t1 = time.time()
 
-            if self.cache_file:
-                cache_file = self.cache_file
-            # default dictionary
-            elif abs_path == DEFAULT_DICT:
-                cache_file = DEFALUT_CACHE_NAME
-            # custom dictionary
-            else:
-                random_id = md5(abs_path.encode('utf-8', 'replace')).hexdigest()
-                cache_file = f"{__softname__}.{random_id}.cache"
+            cache_file = self._get_cache_file()
 
-            cache_file = os.path.join(self.tmp_dir or tempfile.gettempdir(),
-                                      cache_file)
-            tmpdir = os.path.dirname(cache_file)
+            # use cache data
+            use_cache_data = False
+            if os.path.isfile(cache_file):
+                word_fd_timestamp = get_json_value(cache_file,
+                                                   'word_fd_timestamp')
+                if word_fd_timestamp:
+                    if self.dictionary_type == 'custom':
+                        if int(word_fd_timestamp) > os.path.getmtime(
+                                self.dictionary):
+                            use_cache_data = True
+                    else:
+                        use_cache_data = True
 
-            load_from_cache_fail = True
-            if os.path.isfile(cache_file) and (abs_path == DEFAULT_DICT or
-                                               os.path.getmtime(
-                                                   cache_file) > os.path.getmtime(
-                        abs_path)):
+            if use_cache_data:
                 logger.debug("Loading model from cache {0}".format(cache_file))
-                try:
-                    with open(cache_file, 'rb') as cf:
-                        self.FREQ, self.total = marshal.load(cf)
-                    load_from_cache_fail = False
-                except Exception:
-                    load_from_cache_fail = True
 
-            if load_from_cache_fail:
-                wlock = DICT_WRITING.get(abs_path, threading.RLock())
-                DICT_WRITING[abs_path] = wlock
-                with wlock:
-                    self.FREQ, self.total = self.gen_pfdict(
-                        self.get_dict_file())
-                    logger.debug(
-                        "Dumping model to file cache {0}".format(cache_file))
-                    try:
-                        # prevent moving across different filesystems
-                        fd, fpath = tempfile.mkstemp(dir=tmpdir)
-                        with os.fdopen(fd, 'wb') as temp_cache_file:
-                            marshal.dump((self.FREQ, self.total),
-                                         temp_cache_file)
-                        _replace_file(fpath, cache_file)
-                    except Exception:
-                        logger.exception("Dump cache file failed.")
+                word_fd = get_json_value(cache_file, 'word_fd')
+                self.word_fd = FreqDist(word_fd)
+            else:
+                word_fd = self.gen_word_fd(self._get_dict_file())
+                self.word_fd = FreqDist(word_fd)
 
-                try:
-                    del DICT_WRITING[abs_path]
-                except KeyError:
-                    pass
+                self.save_model(save_hmm=False)
 
             self.initialized = True
             logger.debug(
                 "Loading model cost %.3f seconds." % (time.time() - t1))
             logger.debug("Prefix dict has been built succesfully.")
 
-    def check_initialized(self):
-        if not self.initialized:
-            self.initialize()
+    def _get_dict_file(self):
+        if self.dictionary == DEFAULT_DICT:
+            from pkg_resources import resource_filename
+            return resource_filename(__softname__, self.dictionary)
+        else:
+            return self.dictionary
 
     def get_DAG(self, sentence):
         self.check_initialized()
@@ -164,7 +158,7 @@ class Segment():
             i = k
             frag = sentence[k]
             while i < N:
-                if self.FREQ.get(frag, 0) > 0:
+                if self.word_fd.get(frag, 0) > 0:
                     tmplist.append(i)
                 i += 1
                 frag = sentence[k:i + 1]
@@ -173,28 +167,18 @@ class Segment():
             DAG[k] = tmplist
         return DAG
 
-    def get_dict_file(self):
-        if self.dictionary == DEFAULT_DICT:
-            return get_module_res(DEFAULT_DICT)
-        else:
-            return open(self.dictionary, 'rb')
-
     def calc(self, sentence, DAG, route):
         N = len(sentence)
         route[N] = (0, 0)
 
-        logtotal = math.log(self.total)
+        logtotal = math.log(self.word_fd.N())
         for idx in range(N - 1, -1, -1):  # 逆序规划 选择一条整个路径频率最大的句子
             route[idx] = max(
-                (math.log(self.FREQ.get(sentence[idx:x + 1]) or 1) -
+                (math.log(self.word_fd.get(sentence[idx:x + 1]) or 1) -
                  logtotal + route[x + 1][0],
                  x) for x in DAG[idx])  # x 终点索引点 idx 考察开始点
 
-    def __cut_DAG(self, sentence, new_word_find=None):
-
-        if new_word_find is None:
-            new_word_find = default_new_word_find
-
+    def __cut_DAG(self, sentence):
         DAG = self.get_DAG(sentence)
         route = {}
         self.calc(sentence, DAG, route)
@@ -213,8 +197,8 @@ class Segment():
                         yield buf
                         buf = ''
                     else:
-                        if not self.FREQ.get(buf):  # 词典里找不到的词 用HMM来分
-                            recognized = new_word_find(buf)
+                        if not self.word_fd.get(buf):  # 词典里找不到的词 用HMM来分
+                            recognized = self.hmm_segment.cut(buf)
                             for t in recognized:
                                 yield t
                         else:
@@ -229,23 +213,19 @@ class Segment():
         if buf:
             if len(buf) == 1:
                 yield buf
-            elif not self.FREQ.get(buf):
-                recognized = hmm_cut(buf)
+            elif not self.word_fd.get(buf):
+                recognized = self.hmm_segment.cut(buf)
                 for t in recognized:
                     yield t
             else:
                 for elem in buf:
                     yield elem
 
+    def tokenize(self, s):
+        return self.lcut(s)
+
     def cut(self, sentence):
-
         """
-        The main function that segments an entire sentence that contains
-        Chinese characters into seperated words.
-
-        Parameter:
-            - sentence: The str(unicode) to be segmented.
-            - HMM: Whether to use the Hidden Markov Model.
         """
         sentence = strdecode(sentence)
 
@@ -275,3 +255,48 @@ class Segment():
 
     def lcut(self, sentence):
         return list(self.cut(sentence))
+
+    def load_userdict(self, filename):
+        self.check_initialized()
+
+        with open(filename, 'rt', encoding='utf8') as f:
+            for line in f:
+                word, freq, tag = re_userdict.match(line).groups()
+                word = word.strip()
+                if freq is not None:
+                    freq = freq.strip()
+                else:
+                    freq = 1
+
+                self.add_word(word, freq)
+
+    def add_word(self, word, freq=1):
+        """
+        Add a word to dictionary.
+        freq and tag can be omitted, freq defaults to be a calculated value
+        that ensures the word can be cut out.
+        """
+        self.check_initialized()
+        word = strdecode(word)
+        freq = int(freq)
+
+        self.word_fd.update({word: freq})
+
+    def save_model(self, save_hmm=False):
+        wlock = CACHE_WRITING.get(self.dictionary, threading.RLock())
+        CACHE_WRITING[self.dictionary] = wlock
+        cache_file = self._get_cache_file()
+        with wlock:
+            logger.debug(
+                "Dumping model to file cache {0}".format(cache_file))
+
+            set_json_value(cache_file, 'word_fd', dict(self.word_fd))
+            set_json_value(cache_file, 'word_fd_timestamp', int(time.time()))
+
+            if save_hmm:
+                self.hmm_segment.save_model()
+
+        try:
+            del CACHE_WRITING[self.dictionary]
+        except KeyError:
+            pass
