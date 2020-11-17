@@ -2,7 +2,7 @@
 # -*-coding:utf-8-*-
 
 import logging
-from fenci.segment import Segment
+from fenci import Segment
 
 logging.basicConfig(level=logging.DEBUG)
 

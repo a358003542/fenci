@@ -3,4 +3,6 @@
 
 
 __softname__ = 'fenci'
-__version__ = '0.2.0'
+__version__ = '0.2.1'
+
+from .segment import Segment
