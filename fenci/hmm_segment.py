@@ -8,7 +8,7 @@ from copy import deepcopy
 import logging
 import threading
 from math import log
-from nltk.tokenize.api import TokenizerI
+from simple_nltk.tokenize.api import TokenizerI
 
 from .base import BaseSegment
 from fenci.train_hmm import train_emit_matrix, train_trans_matrix

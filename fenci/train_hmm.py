@@ -2,8 +2,9 @@
 # -*-coding:utf-8-*-
 
 import os
-from nltk import FreqDist, bigrams
-import nltk
+from simple_nltk import FreqDist
+from simple_nltk.util import bigrams
+from simple_nltk.tag.util import str2tuple
 from math import log
 
 from fenci.utils import read_training_content
@@ -36,7 +37,7 @@ def prepare_bmes_content(root, regexp):
 
     for t in bmes_content_list:
         for s in t.split():
-            new_bmes_content_list.append(nltk.tag.str2tuple(s))
+            new_bmes_content_list.append(str2tuple(s))
 
     return new_bmes_content_list
 

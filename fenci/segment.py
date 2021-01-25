@@ -8,8 +8,8 @@ import logging
 import os
 import time
 
-from nltk import FreqDist
-from nltk.tokenize.api import TokenizerI
+from simple_nltk import FreqDist
+from simple_nltk.tokenize.api import TokenizerI
 
 from .base import BaseSegment
 from .hmm_segment import HMMSegment

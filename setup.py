@@ -31,7 +31,7 @@ setup(
                  'Operating System :: POSIX :: Linux',
                  'Topic :: Text Processing',
                  'Programming Language :: Python :: 3.6'],
-    packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
+    packages=find_packages(exclude=['examples', 'tests']),
     include_package_data=True,
     install_requires=REQUIREMENTS,
 )
