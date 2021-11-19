@@ -91,14 +91,16 @@ update模式将在原有HMM训练数据基础上继续训练，注意训练之�
 self.hmm_segment.save_model()
 ```
 
-## TODO
-1. 编写测试案例
-2. 编写文档
-3. 分词评分评估
+
 
 
 ## CHANGELOG
+### 0.3.0
+
+一番整理，现在本模块不再依赖其他模块。
+
 ### 0.2.2
+
 使用简化版本的simple_nltk。
 
 ### 0.2.0
@@ -106,5 +108,4 @@ self.hmm_segment.save_model()
 
 ### 0.1.2
 加入HMM训练，重新训练数据，原字典数据较小。
-
 
