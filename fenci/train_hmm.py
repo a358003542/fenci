@@ -2,12 +2,11 @@
 # -*-coding:utf-8-*-
 
 import os
-from simple_nltk import FreqDist
-from simple_nltk.util import bigrams
-from simple_nltk.tag.util import str2tuple
+
 from math import log
 
 from fenci.utils import read_training_content
+from .nltk_utils import FreqDist, bigrams, str2tuple
 
 
 def suggest_bmes(word):

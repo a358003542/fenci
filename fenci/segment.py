@@ -8,9 +8,8 @@ import logging
 import os
 import time
 
-from simple_nltk import FreqDist
-from simple_nltk.tokenize.api import TokenizerI
 
+from .nltk_utils import TokenizerI, FreqDist
 from .base import BaseSegment
 from .hmm_segment import HMMSegment
 from .utils import normalized_path, get_json_value, set_json_value

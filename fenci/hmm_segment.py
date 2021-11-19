@@ -8,9 +8,11 @@ from copy import deepcopy
 import logging
 import threading
 from math import log
-from simple_nltk.tokenize.api import TokenizerI
+
 
 from .base import BaseSegment
+from .nltk_utils import TokenizerI
+
 from fenci.train_hmm import train_emit_matrix, train_trans_matrix
 from fenci.utils import strdecode, get_json_value, set_json_value
 from fenci.const import CACHE_WRITING, DEFAULT_HMM_DATA

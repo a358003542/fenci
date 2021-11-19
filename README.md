@@ -98,6 +98,9 @@ self.hmm_segment.save_model()
 
 
 ## CHANGELOG
+### 0.2.2
+使用简化版本的simple_nltk。
+
 ### 0.2.0
 彻底脱离原jieba分词项目结构，整体重新设计。
 
