@@ -86,6 +86,20 @@ def get_json_data(json_filename, default_data=None):
         return data
 
 
+def update_json_file(json_filename, data: dict, default_data=None):
+    """
+    update json file dict according the data dict
+    """
+    json_data = get_json_data(json_filename, default_data=default_data)
+
+    if not isinstance(json_data, dict):
+        raise Exception(
+            "the target json file must stored whole data as one dict.")
+
+    json_data.update(data)
+    write_json(get_json_file(json_filename), json_data)
+
+
 def get_json_value(json_filename, key, default_data=None):
     """
     get value by key in json file if your json file stored value as one dict.
@@ -100,8 +114,7 @@ def get_json_value(json_filename, key, default_data=None):
 
 def set_json_value(json_filename, key, value, default_data=None):
     """
-    set value by key and value in json file if your json file stored value
-    as one dict.
+    set value by key and value in json file
     """
     data = get_json_data(json_filename, default_data=default_data)
 

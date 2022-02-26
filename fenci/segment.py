@@ -3,19 +3,19 @@
 
 import re
 import math
-import threading
 import logging
 import os
 import time
 
+from filelock import FileLock
 
 from .nltk_utils import TokenizerI, FreqDist
 from .base import BaseSegment
 from .hmm_segment import HMMSegment
-from .utils import normalized_path, get_json_value, set_json_value
+from .utils import normalized_path, get_json_value, update_json_file
 from . import __softname__
-from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME, CACHE_WRITING
-from .utils import strdecode
+from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME
+from .utils import strdecode, read_training_content
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,6 @@ re_skip_default = re.compile(r"([\r\n|\s]+)")
 class Segment(TokenizerI, BaseSegment):
     def __init__(self, dictionary=None, traning_root=None,
                  traning_regexp='.*\.txt'):
-        self.lock = threading.RLock()
-
         self.training_root = traning_root
         self.training_regexp = traning_regexp
 
@@ -67,7 +65,6 @@ class Segment(TokenizerI, BaseSegment):
         root = root if root is not None else self.training_root
         regexp = regexp if regexp is not None else self.training_regexp
 
-        from fenci.utils import read_training_content
         content = read_training_content(root, regexp)
 
         content_list = content.split()
@@ -101,44 +98,43 @@ class Segment(TokenizerI, BaseSegment):
         return word_fd
 
     def initialize(self):
-        with self.lock:  # 字典在建造时的线程锁
-            if self.initialized:  # 已经初始化了就不用初始化了
-                return
+        if self.initialized:  # 已经初始化了就不用初始化了
+            return
 
-            logger.debug("Building prefix dict from %s ..." % (
-                    self.dictionary or 'the default dictionary'))
-            t1 = time.time()
+        logger.debug("Building prefix dict from %s ..." % (
+                self.dictionary or 'the default dictionary'))
+        t1 = time.time()
 
-            cache_file = self._get_cache_file()
+        cache_file = self._get_cache_file()
 
-            # use cache data
-            use_cache_data = False
-            if os.path.isfile(cache_file):
-                word_fd_timestamp = get_json_value(cache_file,
-                                                   'word_fd_timestamp')
-                if word_fd_timestamp:
-                    if self.dictionary_type == 'custom':
-                        if int(word_fd_timestamp) > os.path.getmtime(
-                                self.dictionary):
-                            use_cache_data = True
-                    else:
+        # use cache data
+        use_cache_data = False
+        if os.path.isfile(cache_file):
+            word_fd_timestamp = get_json_value(cache_file,
+                                               'word_fd_timestamp')
+            if word_fd_timestamp:
+                if self.dictionary_type == 'custom':
+                    if int(word_fd_timestamp) > os.path.getmtime(
+                            self.dictionary):
                         use_cache_data = True
+                else:
+                    use_cache_data = True
 
-            if use_cache_data:
-                logger.debug("Loading model from cache {0}".format(cache_file))
+        if use_cache_data:
+            logger.debug("Loading model from cache {0}".format(cache_file))
 
-                word_fd = get_json_value(cache_file, 'word_fd')
-                self.word_fd = FreqDist(word_fd)
-            else:
-                word_fd = self.gen_word_fd(self._get_dict_file())
-                self.word_fd = FreqDist(word_fd)
+            word_fd = get_json_value(cache_file, 'word_fd')
+            self.word_fd = FreqDist(word_fd)
+        else:
+            word_fd = self.gen_word_fd(self._get_dict_file())
+            self.word_fd = FreqDist(word_fd)
 
-                self.save_model(save_hmm=False)
+            self.save_model(save_hmm=False)
 
-            self.initialized = True
-            logger.debug(
-                "Loading model cost %.3f seconds." % (time.time() - t1))
-            logger.debug("Prefix dict has been built succesfully.")
+        self.initialized = True
+        logger.debug(
+            "Loading model cost %.3f seconds." % (time.time() - t1))
+        logger.debug("Prefix dict has been built succesfully.")
 
     def _get_dict_file(self):
         if self.dictionary == DEFAULT_DICT:
@@ -282,20 +278,23 @@ class Segment(TokenizerI, BaseSegment):
         self.word_fd.update({word: freq})
 
     def save_model(self, save_hmm=False):
-        wlock = CACHE_WRITING.get(self.dictionary, threading.RLock())
-        CACHE_WRITING[self.dictionary] = wlock
+        """
+        保存模型文件
+        :param save_hmm:
+        :return:
+        """
         cache_file = self._get_cache_file()
+
+        wlock = FileLock(f'{cache_file}.lock')
+
         with wlock:
             logger.debug(
                 "Dumping model to file cache {0}".format(cache_file))
 
-            set_json_value(cache_file, 'word_fd', dict(self.word_fd))
-            set_json_value(cache_file, 'word_fd_timestamp', int(time.time()))
+            update_json_file(cache_file, {
+                'word_fd': dict(self.word_fd),
+                'word_fd_timestamp': int(time.time())
+            })
 
-            if save_hmm:
-                self.hmm_segment.save_model()
-
-        try:
-            del CACHE_WRITING[self.dictionary]
-        except KeyError:
-            pass
+        if save_hmm:
+            self.hmm_segment.save_model()
