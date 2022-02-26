@@ -6,6 +6,8 @@ import json
 import logging
 import re
 from pathlib import Path
+import tempfile
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +50,17 @@ def strdecode(sentence):
 
 def write_json(file, data):
     """
-    write data to json file
+    采用更稳妥的写文件方式，先在另外一个临时文件里面写，确保写操作无误之后再更改文件名
     """
-    with open(file, 'w', encoding='utf8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    fp = tempfile.NamedTemporaryFile(mode='wt', encoding='utf8', delete=False)
+    try:
+        json.dump(data, fp, indent=4, ensure_ascii=False)
+        fp.close()
+    except Exception as e:
+        logger.error(f"write data to tempfile {fp.name} failed!!! \n"
+                     f"{e}")
+    finally:
+        shutil.move(fp.name, file)
 
 
 def get_json_file(json_filename, default_data=None):
