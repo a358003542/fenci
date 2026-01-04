@@ -7,6 +7,13 @@ import logging
 import os
 import time
 
+try:
+    # 优先尝试导入标准库版本（3.9+）
+    import importlib.resources as resources
+except ImportError:
+    # 3.7/3.8 降级使用第三方兼容包
+    import importlib_resources as resources
+
 from filelock import FileLock
 
 from .nltk_utils import TokenizerI, FreqDist
@@ -25,6 +32,25 @@ re_eng = re.compile('[a-zA-Z0-9]')
 re_han_default = re.compile(r"([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)")
 re_skip_default = re.compile(r"([\r\n|\s]+)")
 
+def get_resource_path(package_name, resource_path):
+    """
+    Python 3.7 兼容的包内资源路径获取函数
+    :param package_name: 包名（如 'my_package'）
+    :param resource_path: 资源文件相对路径（如 'data/config.json'）
+    :return: 资源文件绝对路径
+    """
+    try:
+        # 3.9+ 用法（3.7 走 except 分支）
+        with resources.as_file(resources.files(package_name) / resource_path) as file_path:
+            return str(file_path)
+    except (AttributeError, TypeError):
+        # 3.7 专用用法（兼容包的接口）
+        # 方式1：获取资源文件路径
+        file_path = resources.path(package_name, resource_path)
+        # 方式2：如果需要读取文件内容（替代 path）
+        # content = resources.read_text(package_name, resource_path)
+        with file_path as fp:
+            return str(fp)
 
 class Segment(TokenizerI, BaseSegment):
     def __init__(self, dictionary=None, traning_root=None,
@@ -138,8 +164,7 @@ class Segment(TokenizerI, BaseSegment):
 
     def _get_dict_file(self):
         if self.dictionary == DEFAULT_DICT:
-            from pkg_resources import resource_filename
-            return resource_filename(__softname__, self.dictionary)
+            return get_resource_path(__softname__, self.dictionary)
         else:
             return self.dictionary
 
@@ -256,8 +281,23 @@ class Segment(TokenizerI, BaseSegment):
 
         with open(filename, 'rt', encoding='utf8') as f:
             for line in f:
-                word, freq, tag = re_userdict.match(line).groups()
-                word = word.strip()
+                # 第一步：去除行首尾的空白字符（包括换行、空格、制表符等）
+                line_stripped = line.strip()
+                # 第二步：如果处理后是空行，直接跳过，不执行后续逻辑
+                if not line_stripped:
+                    continue
+
+                # 第三步：匹配有效行（原逻辑）
+                match_result = re_userdict.match(line_stripped)
+                # 额外防护：如果正则匹配失败（非空白行但格式错误），也跳过并提示
+                if not match_result:
+                    # 可选：打印警告日志，方便排查格式错误的行
+                    # print(f"警告：行格式不合法，已跳过 -> {line}")
+                    continue
+
+                # 提取匹配结果（原逻辑）
+                word, freq, tag = match_result.groups()
+                word = word.strip()  # 双重防护，确保词无首尾空白
                 if freq is not None:
                     freq = freq.strip()
                 else:
