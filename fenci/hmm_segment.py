@@ -14,7 +14,7 @@ from filelock import FileLock
 from .base import BaseSegment
 from .nltk_utils import TokenizerI
 from .train_hmm import train_emit_matrix, train_trans_matrix
-from .utils import strdecode, get_json_value, update_json_file
+from .utils import strdecode, get_json_value, update_json_file, get_resource_path
 from .const import DEFAULT_HMM_DATA
 from . import __softname__
 
@@ -227,8 +227,7 @@ class HMMSegment(TokenizerI, BaseSegment):
         logger.debug("Prefix dict has been built succesfully.")
 
     def _get_default_model_file(self):
-        from pkg_resources import resource_filename
-        return resource_filename(__softname__, DEFAULT_HMM_DATA)
+        return get_resource_path(__softname__, DEFAULT_HMM_DATA)
 
     def _prepare_P_trans(self):
         P_trans_data = self.model_data.get('P_trans')

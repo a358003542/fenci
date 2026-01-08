@@ -7,19 +7,12 @@ import logging
 import os
 import time
 
-try:
-    # 优先尝试导入标准库版本（3.9+）
-    import importlib.resources as resources
-except ImportError:
-    # 3.7/3.8 降级使用第三方兼容包
-    import importlib_resources as resources
-
 from filelock import FileLock
 
 from .nltk_utils import TokenizerI, FreqDist
 from .base import BaseSegment
 from .hmm_segment import HMMSegment
-from .utils import normalized_path, get_json_value, update_json_file
+from .utils import normalized_path, get_json_value, update_json_file, get_resource_path
 from . import __softname__
 from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME
 from .utils import strdecode, read_training_content
@@ -32,25 +25,6 @@ re_eng = re.compile('[a-zA-Z0-9]')
 re_han_default = re.compile(r"([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)")
 re_skip_default = re.compile(r"([\r\n|\s]+)")
 
-def get_resource_path(package_name, resource_path):
-    """
-    Python 3.7 兼容的包内资源路径获取函数
-    :param package_name: 包名（如 'my_package'）
-    :param resource_path: 资源文件相对路径（如 'data/config.json'）
-    :return: 资源文件绝对路径
-    """
-    try:
-        # 3.9+ 用法（3.7 走 except 分支）
-        with resources.as_file(resources.files(package_name) / resource_path) as file_path:
-            return str(file_path)
-    except (AttributeError, TypeError):
-        # 3.7 专用用法（兼容包的接口）
-        # 方式1：获取资源文件路径
-        file_path = resources.path(package_name, resource_path)
-        # 方式2：如果需要读取文件内容（替代 path）
-        # content = resources.read_text(package_name, resource_path)
-        with file_path as fp:
-            return str(fp)
 
 class Segment(TokenizerI, BaseSegment):
     def __init__(self, dictionary=None, traning_root=None,

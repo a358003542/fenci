@@ -5,6 +5,14 @@ import os
 import json
 import logging
 import re
+
+try:
+    # 优先尝试导入标准库版本（3.9+）
+    import importlib.resources as resources
+except ImportError:
+    # 3.7/3.8 降级使用第三方兼容包
+    import importlib_resources as resources
+
 from pathlib import Path
 import tempfile
 import shutil
@@ -139,3 +147,24 @@ def find_trainning_files(root, regexp, **kwargs):
 def read_training_content(root, regexp):
     return ''.join([open(file, encoding='utf8').read() for file in
                     find_trainning_files(root, regexp)])
+
+
+def get_resource_path(package_name, resource_path):
+    """
+    Python 3.7 兼容的包内资源路径获取函数
+    :param package_name: 包名（如 'my_package'）
+    :param resource_path: 资源文件相对路径（如 'data/config.json'）
+    :return: 资源文件绝对路径
+    """
+    try:
+        # 3.9+ 用法（3.7 走 except 分支）
+        with resources.as_file(resources.files(package_name) / resource_path) as file_path:
+            return str(file_path)
+    except (AttributeError, TypeError):
+        # 3.7 专用用法（兼容包的接口）
+        # 方式1：获取资源文件路径
+        file_path = resources.path(package_name, resource_path)
+        # 方式2：如果需要读取文件内容（替代 path）
+        # content = resources.read_text(package_name, resource_path)
+        with file_path as fp:
+            return str(fp)
