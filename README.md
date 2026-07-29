@@ -9,7 +9,7 @@
 
 模型数据就存放在 `\AppData\Local\Temp` 里面的 `fenci.cache` ，其就是一个json文件。
 
-读写速度模型文件未建立需要1秒多，模型文件建立正常读写文件需要0.3秒多，值得一提的是本程序经过优化只要你一直调用 `s=Segment()` 同一对象，则读取模型只会读取一次，也就是后面多次cut则前面的0.3秒加载时间几乎可以忽略笔记。
+读写速度模型文件未建立需要1秒多，模型文件建立正常读写文件需要0.3秒多，值得一提的是本程序经过优化只要你一直调用 `s=Segment()` 同一对象，则读取模型只会读取一次，也就是后面多次cut则前面的0.3秒加载时间几乎可以忽略不计。
 
 ## USAGE
 ### lcut or cut
@@ -91,3 +91,9 @@ update模式将在原有HMM训练数据基础上继续训练，注意训练之�
 self.hmm_segment.save_model()
 ```
 
+## 上传到pypi
+```text
+python setup.py sdist bdist_wheel
+twine check dist/*
+twine upload dist/*
+```
