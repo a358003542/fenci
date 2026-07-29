@@ -270,7 +270,7 @@ class Segment(TokenizerI, BaseSegment):
                     continue
 
                 # 提取匹配结果（原逻辑）
-                word, freq, tag = match_result.groups()
+                word, freq, _ = match_result.groups()
                 word = word.strip()  # 双重防护，确保词无首尾空白
                 if freq is not None:
                     freq = freq.strip()
