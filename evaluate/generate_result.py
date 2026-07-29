@@ -5,6 +5,8 @@ from fenci import Segment
 
 s = Segment()
 
+s.reset_model(model='default')
+
 def segment(text):
     res = s.lcut(text)
     return ' '.join(res)

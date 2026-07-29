@@ -135,6 +135,8 @@ def set_json_value(json_filename, key, value, default_data=None):
 
 
 def find_trainning_files(root, regexp, **kwargs):
+    logger.debug(f"finding training files in {os.path.abspath(root)}")
+
     items = []
 
     for dirname, subdirs, fileids in os.walk(root, **kwargs):

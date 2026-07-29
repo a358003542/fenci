@@ -4,8 +4,6 @@
 
 from . import __softname__
 
-DEFAULT_DICT = 'dict_small.txt'
+DEFAULT_MODEL_NAME = f'{__softname__}_model'
 
-DEFAULT_HMM_DATA = 'hmm_data.json'
-
-DEFALUT_CACHE_NAME = f'{__softname__}.cache'
+DEFAULT_SIMPLE_MODEL = f'{__softname__}_model_simple'
