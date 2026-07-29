@@ -12,9 +12,9 @@ from filelock import FileLock
 from .nltk_utils import TokenizerI, FreqDist
 from .base import BaseSegment
 from .hmm_segment import HMMSegment
-from .utils import normalized_path, get_json_value, update_json_file, get_resource_path
-from . import __softname__
-from .const import DEFAULT_DICT, DEFALUT_CACHE_NAME
+from .utils import get_json_value, update_json_file
+
+from .const import DEFAULT_MODEL_NAME
 from .utils import strdecode, read_training_content
 
 logger = logging.getLogger(__name__)
@@ -27,30 +27,20 @@ re_skip_default = re.compile(r"([\r\n|\s]+)")
 
 
 class Segment(TokenizerI, BaseSegment):
-    def __init__(self, dictionary=None, traning_root=None,
-                 traning_regexp='.*\.txt'):
+    def __init__(self, traning_root=None, traning_regexp=r'.*\.txt', use_hmm=True):
         self.training_root = traning_root
         self.training_regexp = traning_regexp
 
-        if dictionary is None:
-            self.dictionary = DEFAULT_DICT
-            self.dictionary_type = 'default'
-        else:
-            self.dictionary = normalized_path(dictionary)
-            self.dictionary_type = 'custom'
-
         self.word_fd = FreqDist()
-
-        self.cache_file = DEFALUT_CACHE_NAME
+        self.model_file = DEFAULT_MODEL_NAME
 
         self.hmm_segment = HMMSegment(traning_root=traning_root,
                                       traning_regexp=traning_regexp,
-                                      cache_file=self.cache_file)
+                                      model_file=self.model_file)
 
         self.initialized = False
-        self.tmp_dir = None
 
-    def training(self, root=None, regexp=None):
+    def training(self, root=None, regexp=None, with_hmm=True):
         """
         根据已经分好词的内容来训练
         :param root:
@@ -73,18 +63,8 @@ class Segment(TokenizerI, BaseSegment):
 
         self.word_fd.update(fd)
 
-    def training_hmm(self, root=None, regexp=None, update_dict=False):
-        self.check_initialized()
-
-        if root is None and self.training_root is None:
-            raise Exception('please give the training data root')
-        root = root if root is not None else self.training_root
-        regexp = regexp if regexp is not None else self.training_regexp
-
-        if update_dict:
-            self.training(root, regexp)
-
-        self.hmm_segment.training(root, regexp)
+        if with_hmm:
+            self.hmm_segment.training(root, regexp)
 
     def gen_word_fd(self, filename):
         word_fd = FreqDist()
@@ -101,46 +81,16 @@ class Segment(TokenizerI, BaseSegment):
         if self.initialized:  # 已经初始化了就不用初始化了
             return
 
-        logger.debug("Building prefix dict from %s ..." % (
-                self.dictionary or 'the default dictionary'))
-        t1 = time.time()
+        model_file = self._get_model_file()
 
-        cache_file = self._get_cache_file()
+        if not os.path.isfile(model_file):
+            logger.warning(f'Can not found model file: {model_file}')
+            self._copy_default_model_file()
 
-        # use cache data
-        use_cache_data = False
-        if os.path.isfile(cache_file):
-            word_fd_timestamp = get_json_value(cache_file,
-                                               'word_fd_timestamp')
-            if word_fd_timestamp:
-                if self.dictionary_type == 'custom':
-                    if int(word_fd_timestamp) > os.path.getmtime(
-                            self.dictionary):
-                        use_cache_data = True
-                else:
-                    use_cache_data = True
-
-        if use_cache_data:
-            logger.debug("Loading model from cache {0}".format(cache_file))
-
-            word_fd = get_json_value(cache_file, 'word_fd')
-            self.word_fd = FreqDist(word_fd)
-        else:
-            word_fd = self.gen_word_fd(self._get_dict_file())
-            self.word_fd = FreqDist(word_fd)
-
-            self.save_model(save_hmm=False)
-
+        logger.debug("Loading model from cache {0}".format(model_file))
+        word_fd = get_json_value(model_file, 'word_fd')
+        self.word_fd = FreqDist(word_fd)
         self.initialized = True
-        logger.debug(
-            "Loading model cost %.3f seconds." % (time.time() - t1))
-        logger.debug("Prefix dict has been built succesfully.")
-
-    def _get_dict_file(self):
-        if self.dictionary == DEFAULT_DICT:
-            return get_resource_path(__softname__, self.dictionary)
-        else:
-            return self.dictionary
 
     def get_DAG(self, sentence):
         self.check_initialized()
@@ -291,13 +241,13 @@ class Segment(TokenizerI, BaseSegment):
 
         self.word_fd.update({word: freq})
 
-    def save_model(self, save_hmm=False):
+    def save_model(self, save_hmm=True):
         """
         保存模型文件
         :param save_hmm:
         :return:
         """
-        cache_file = self._get_cache_file()
+        cache_file = self._get_model_file()
 
         wlock = FileLock(f'{cache_file}.lock')
 

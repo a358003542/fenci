@@ -12,6 +12,6 @@ def test_load_dict():
     s.load_userdict('tests/test_dict.txt')
 
     res2 = s.tokenize("机器学习是一门新型的计算机学科。")
-
+    print(res1,res2)
     assert '机器学习' not in res1
     assert '机器学习' in res2

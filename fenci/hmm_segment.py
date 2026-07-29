@@ -6,7 +6,6 @@ import re
 import os
 from copy import deepcopy
 import logging
-import threading
 from math import log
 
 from filelock import FileLock
@@ -14,9 +13,7 @@ from filelock import FileLock
 from .base import BaseSegment
 from .nltk_utils import TokenizerI
 from .train_hmm import train_emit_matrix, train_trans_matrix
-from .utils import strdecode, get_json_value, update_json_file, get_resource_path
-from .const import DEFAULT_HMM_DATA
-from . import __softname__
+from .utils import strdecode, get_json_value, update_json_file
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +23,7 @@ start_P = {'B': -0.26268660809250016,
            'S': -1.4652633398537678}
 
 re_han_hmm = re.compile("([\u4E00-\u9FD5]+)")
-re_skip_hmm = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+re_skip_hmm = re.compile(r"([a-zA-Z0-9]+(?:\.\d+)?%?)")
 
 MIN_FLOAT = -3.14e100
 
@@ -39,18 +36,14 @@ PrevStatus = {
 
 
 class HMMSegment(TokenizerI, BaseSegment):
-    def __init__(self, traning_root=None,
-                 traning_regexp='.*\.txt', traning_mode='update',
-                 cache_file=None):
+    def __init__(self, traning_root=None, traning_regexp=r'.*\.txt', traning_mode='update', model_file=None):
         self.training_root = traning_root
         self.training_regexp = traning_regexp
-
         self.training_mode = traning_mode
 
         assert self.training_mode in ['update', 'replace']
 
-        self.cache_file = cache_file
-        self.tmp_dir = None
+        self.model_file = model_file
 
         self.P_trans = None
         self.model_data = {}
@@ -64,7 +57,7 @@ class HMMSegment(TokenizerI, BaseSegment):
         prob, pos_list = viterbi(sentence, 'BMES', start_P, self.P_trans,
                                  self.P_emit)
         begin, nexti = 0, 0
-        # logger.debug pos_list, sentence
+
         for i, char in enumerate(sentence):
             pos = pos_list[i]
             if pos == 'B':
@@ -99,7 +92,7 @@ class HMMSegment(TokenizerI, BaseSegment):
         return self.lcut(s)
 
     def save_model(self):
-        cache_file = self._get_cache_file()
+        cache_file = self._get_model_file()
 
         wlock = FileLock(f'{cache_file}.lock')
 
@@ -153,8 +146,11 @@ class HMMSegment(TokenizerI, BaseSegment):
             b = key[1]
             if a in one and b in one[a]:
                 P_transMatrix[a][b] += one[a][b]
-            if a in two and b in two[a]:
-                P_transMatrix[a][b] += two[a][b]
+            if two:
+                if a in two and b in two[a]:
+                    P_transMatrix[a][b] += two[a][b]
+            else:
+                pass
 
         new_P_transMatrix = {}
 
@@ -174,13 +170,15 @@ class HMMSegment(TokenizerI, BaseSegment):
         for k, v in one.items():
             for word in v:
                 P_emit[k][word] = v[word]
-
-        for k, v in two.items():
-            for word in v:
-                if word in P_emit:
-                    P_emit[k][word] += v[word]
-                else:
-                    P_emit[k][word] = v[word]
+        if two:
+            for k, v in two.items():
+                for word in v:
+                    if word in P_emit:
+                        P_emit[k][word] += v[word]
+                    else:
+                        P_emit[k][word] = v[word]
+        else:
+            pass
 
         return P_emit
 
@@ -188,46 +186,21 @@ class HMMSegment(TokenizerI, BaseSegment):
         if self.initialized:
             return
 
-        t1 = time.time()
+        model_file = self._get_model_file()
 
-        cache_file = self._get_cache_file()
+        if not os.path.isfile(model_file):
+            logger.warning(f'Can not found model file: {model_file}')
+            self._copy_default_model_file()
 
-        # use cache data
-        use_cache_data = False
-        if os.path.isfile(cache_file):
-            hmm_timestamp = get_json_value(cache_file,
-                                           'hmm_timestamp')
-            if hmm_timestamp:
-                use_cache_data = True
+        logger.debug("Loading model from cache {0}".format(model_file))
+        P_trans = get_json_value(model_file, 'P_trans')
+        P_emit = get_json_value(model_file, 'P_emit')
+        self.model_data = {'P_emit': P_emit, 'P_trans': P_trans}
 
-        if use_cache_data:
-            logger.debug(
-                "Loading HMM model from cache {0}".format(cache_file))
-            P_trans = get_json_value(cache_file, 'P_trans')
-            P_emit = get_json_value(cache_file, 'P_emit')
-            self.model_data = {'P_emit': P_emit, 'P_trans': P_trans}
-
-            self.P_emit = self._prepare_P_emit()
-            self.P_trans = self._prepare_P_trans()
-        else:
-            P_trans = get_json_value(self._get_default_model_file(),
-                                     'P_trans')
-            P_emit = get_json_value(self._get_default_model_file(),
-                                    'P_emit')
-            self.model_data = {'P_emit': P_emit, 'P_trans': P_trans}
-
-            self.P_emit = self._prepare_P_emit()
-            self.P_trans = self._prepare_P_trans()
-
-            self.save_model()
+        self.P_emit = self._prepare_P_emit()
+        self.P_trans = self._prepare_P_trans()
 
         self.initialized = True
-        logger.debug(
-            "Loading model cost %.3f seconds." % (time.time() - t1))
-        logger.debug("Prefix dict has been built succesfully.")
-
-    def _get_default_model_file(self):
-        return get_resource_path(__softname__, DEFAULT_HMM_DATA)
 
     def _prepare_P_trans(self):
         P_trans_data = self.model_data.get('P_trans')
