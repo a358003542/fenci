@@ -3,12 +3,13 @@
 import shutil
 from abc import ABC, abstractmethod
 import os
-import tempfile
 import logging
+from platformdirs import PlatformDirs
 
 from .const import DEFAULT_MODEL_NAME, DEFAULT_SIMPLE_MODEL
 from . import __softname__
 from .utils import get_resource_path
+from fenci import __appname__, __appauthor__
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,8 @@ class BaseSegment(ABC):
             self.initialize()
 
     def _get_model_file(self):
-        model_file = os.path.join(self.tmp_dir or tempfile.gettempdir(), self.model_file)
-        self.tmp_dir = os.path.dirname(model_file)
+        dirs = PlatformDirs(__appname__, __appauthor__, ensure_exists=True)
+        model_file =  os.path.join(dirs.user_data_dir, self.model_file)
         return model_file
 
     def _copy_default_model_file(self):
